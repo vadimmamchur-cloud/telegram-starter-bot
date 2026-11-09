@@ -1,64 +1,149 @@
+
 import { InlineKeyboard } from "grammy"
 
-const menu = new InlineKeyboard()
-  .text("📊 Ціна LOOT", "price")
-  .text("💰 Баланс", "balance")
+const keyboard = new InlineKeyboard()
+  .text("📊 Ціна токена", "price")
+  .text("🔍 Аналіз", "analysis")
   .row()
-  .text("🔍 Аналіз ринку", "analysis")
   .text("❓ Допомога", "help")
+
+async function getTokenData(address) {
+  const response = await fetch(
+    `https://api.dexscreener.com/token-pairs/v1/ton/${encodeURIComponent(address)}`
+  )
+
+  if (!response.ok) {
+    throw new Error("Market data unavailable")
+  }
+
+  const pairs = await response.json()
+
+  if (!Array.isArray(pairs) || pairs.length === 0) {
+    return null
+  }
+
+  pairs.sort(
+    (a, b) =>
+      Number(b.liquidity?.usd || 0) -
+      Number(a.liquidity?.usd || 0)
+  )
+
+  return pairs[0]
+}
+
+function formatData(pair) {
+  const price = Number(pair.priceUsd || 0)
+  const liquidity = Number(pair.liquidity?.usd || 0)
+  const volume = Number(pair.volume?.h24 || 0)
+  const change = Number(pair.priceChange?.h24 || 0)
+
+  return [
+    `🪙 ${pair.baseToken?.name || "Token"} (${pair.baseToken?.symbol || "?"})`,
+    "",
+    `💵 Ціна: $${price.toPrecision(7)}`,
+    `💧 Ліквідність: $${liquidity.toFixed(2)}`,
+    `📈 Обсяг за 24 год: $${volume.toFixed(2)}`,
+    `📊 Зміна за 24 год: ${change.toFixed(2)}%`,
+    `🏦 Біржа: ${pair.dexId || "невідомо"}`,
+    "",
+    "Дані інформаційні. Не фінансова рекомендація."
+  ].join("\n")
+}
 
 export function registerCommands(bot) {
   bot.command("start", async (ctx) => {
     await ctx.reply(
       "🤖 TON TRADER\n\n" +
       "Помічник для аналізу токенів мережі TON.\n\n" +
-      "Торгівля поки вимкнена. Кожну майбутню операцію ти підтверджуватимеш сам.",
-      { reply_markup: menu }
+      "📊 Ціни та ринкові дані\n" +
+      "🔍 Аналіз ліквідності\n" +
+      "📈 Обсяг і зміна ціни\n\n" +
+      "Торгівля поки вимкнена. Усі угоди — тільки після твого підтвердження.",
+      { reply_markup: keyboard }
     )
   })
 
-  bot.command("help", (ctx) =>
-    ctx.reply(
-      "Команди TON Trader:\n\n" +
+  bot.command("help", async (ctx) => {
+    await ctx.reply(
+      "КОМАНДИ TON TRADER\n\n" +
       "/start — головне меню\n" +
-      "/price — ціна LOOT\n" +
-      "/balance — баланс\n" +
-      "/analysis — аналіз ринку\n" +
-      "/ping — перевірка роботи бота"
+      "/price АДРЕСА — ціна токена\n" +
+      "/analysis АДРЕСА — аналіз токена\n" +
+      "/ping — перевірка роботи"
     )
-  )
+  })
 
-  bot.command("ping", (ctx) => ctx.reply("TON Trader працює 🟢"))
+  bot.command("ping", async (ctx) => {
+    await ctx.reply("🟢 TON Trader працює!")
+  })
 
-  bot.command("price", (ctx) =>
-    ctx.reply("📊 Дані про ціну LOOT ще не підключені. Це буде наступний етап.")
-  )
+  bot.command("price", async (ctx) => {
+    const address = ctx.match.trim()
 
-  bot.command("balance", (ctx) =>
-    ctx.reply("💰 Гаманець ще не підключений. Приватні ключі та seed-фразу вводити не потрібно.")
-  )
+    if (!address) {
+      return ctx.reply("Вкажи адресу Jetton:\n/price АДРЕСА_ТОКЕНА")
+    }
 
-  bot.command("analysis", (ctx) =>
-    ctx.reply("🔍 Модуль аналізу ринку ще налаштовується.")
-  )
+    try {
+      const pair = await getTokenData(address)
+
+      if (!pair) {
+        return ctx.reply("Токен або торгову пару не знайдено.")
+      }
+
+      await ctx.reply(formatData(pair))
+    } catch (error) {
+      console.error(error)
+      await ctx.reply("Не вдалося отримати дані. Спробуй пізніше.")
+    }
+  })
+
+  bot.command("analysis", async (ctx) => {
+    const address = ctx.match.trim()
+
+    if (!address) {
+      return ctx.reply("Вкажи адресу Jetton:\n/analysis АДРЕСА_ТОКЕНА")
+    }
+
+    try {
+      const pair = await getTokenData(address)
+
+      if (!pair) {
+        return ctx.reply("Торгову пару не знайдено.")
+      }
+
+      const liquidity = Number(pair.liquidity?.usd || 0)
+      const volume = Number(pair.volume?.h24 || 0)
+
+      let assessment = "⚠️ Потрібна додаткова перевірка."
+
+      if (liquidity >= 10000 && volume >= 5000) {
+        assessment = "Є помітна ліквідність та торговий обсяг."
+      } else if (liquidity < 1000) {
+        assessment = "⚠️ Низька ліквідність. Високий ризик прослизання."
+      }
+
+      await ctx.reply(
+        formatData(pair) + "\n\n🔎 ОЦІНКА\n" + assessment
+      )
+    } catch (error) {
+      console.error(error)
+      await ctx.reply("Помилка аналізу. Спробуй пізніше.")
+    }
+  })
 
   bot.callbackQuery("price", async (ctx) => {
     await ctx.answerCallbackQuery()
-    await ctx.reply("📊 Дані про ціну LOOT ще не підключені.")
-  })
-
-  bot.callbackQuery("balance", async (ctx) => {
-    await ctx.answerCallbackQuery()
-    await ctx.reply("💰 Гаманець ще не підключений.")
+    await ctx.reply("Використай /price і адресу токена.")
   })
 
   bot.callbackQuery("analysis", async (ctx) => {
     await ctx.answerCallbackQuery()
-    await ctx.reply("🔍 Модуль аналізу ринку ще налаштовується.")
+    await ctx.reply("Використай /analysis і адресу токена.")
   })
 
   bot.callbackQuery("help", async (ctx) => {
     await ctx.answerCallbackQuery()
-    await ctx.reply("Використовуй /help, щоб побачити список команд.")
+    await ctx.reply("Надішли /help для списку команд.")
   })
 }
