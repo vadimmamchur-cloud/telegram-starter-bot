@@ -1,24 +1,64 @@
-// Your bot's behaviour. Add commands here; grammY's docs (grammy.dev) cover
-// keyboards, sessions, files, inline queries and everything else.
-
 import { InlineKeyboard } from "grammy"
 
+const menu = new InlineKeyboard()
+  .text("📊 Ціна LOOT", "price")
+  .text("💰 Баланс", "balance")
+  .row()
+  .text("🔍 Аналіз ринку", "analysis")
+  .text("❓ Допомога", "help")
+
 export function registerCommands(bot) {
-  bot.command("start", (ctx) =>
-    ctx.reply(`Hi ${ctx.from?.first_name ?? "there"}. I am alive and hosted on FadeHost. Send /help to see what I can do.`, {
-      reply_markup: new InlineKeyboard().text("Ping me", "ping"),
-    }),
-  )
+  bot.command("start", async (ctx) => {
+    await ctx.reply(
+      "🤖 TON TRADER\n\n" +
+      "Помічник для аналізу токенів мережі TON.\n\n" +
+      "Торгівля поки вимкнена. Кожну майбутню операцію ти підтверджуватимеш сам.",
+      { reply_markup: menu }
+    )
+  })
 
   bot.command("help", (ctx) =>
-    ctx.reply(["Commands:", "/start  say hello", "/help   this list", "/ping   check I am awake", "/id     show chat and user ids", "", "Send me any text and I echo it back."].join("\n")),
+    ctx.reply(
+      "Команди TON Trader:\n\n" +
+      "/start — головне меню\n" +
+      "/price — ціна LOOT\n" +
+      "/balance — баланс\n" +
+      "/analysis — аналіз ринку\n" +
+      "/ping — перевірка роботи бота"
+    )
   )
 
-  bot.command("ping", (ctx) => ctx.reply("pong"))
+  bot.command("ping", (ctx) => ctx.reply("TON Trader працює 🟢"))
 
-  bot.command("id", (ctx) => ctx.reply(`Chat id: ${ctx.chat.id}\nYour id: ${ctx.from?.id ?? "unknown"}`))
+  bot.command("price", (ctx) =>
+    ctx.reply("📊 Дані про ціну LOOT ще не підключені. Це буде наступний етап.")
+  )
 
-  bot.callbackQuery("ping", (ctx) => ctx.answerCallbackQuery({ text: "pong" }))
+  bot.command("balance", (ctx) =>
+    ctx.reply("💰 Гаманець ще не підключений. Приватні ключі та seed-фразу вводити не потрібно.")
+  )
 
-  bot.on("message:text", (ctx) => ctx.reply(ctx.message.text))
+  bot.command("analysis", (ctx) =>
+    ctx.reply("🔍 Модуль аналізу ринку ще налаштовується.")
+  )
+
+  bot.callbackQuery("price", async (ctx) => {
+    await ctx.answerCallbackQuery()
+    await ctx.reply("📊 Дані про ціну LOOT ще не підключені.")
+  })
+
+  bot.callbackQuery("balance", async (ctx) => {
+    await ctx.answerCallbackQuery()
+    await ctx.reply("💰 Гаманець ще не підключений.")
+  })
+
+  bot.callbackQuery("analysis", async (ctx) => {
+    await ctx.answerCallbackQuery()
+    await ctx.reply("🔍 Модуль аналізу ринку ще налаштовується.")
+  })
+
+  bot.callbackQuery("help", async (ctx) => {
+    await ctx.answerCallbackQuery()
+    await ctx.reply("Використовуй /help, щоб побачити список команд.")
+  })
 }
